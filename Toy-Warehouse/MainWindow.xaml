@@ -11,7 +11,7 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Боковое меню (тёмное) -->
+        <!-- Боковое меню -->
         <Border Grid.Column="0" Background="#161B22">
             <StackPanel Margin="0,20,0,0">
                 <TextBlock Text="📦 СКЛАДУЧЕТ" FontSize="20" FontWeight="Bold" Foreground="#58A6FF" 
@@ -98,11 +98,11 @@
                             </Style>
 
                             <Style TargetType="DataGridCell">
-                                <Setter Property="VerticalAlignment" Value="Center"/>
+
                                 <Setter Property="Padding" Value="10,0"/>
-                                <Setter Property="Foreground" Value="#E6EDF3"/>
+                                <Setter Property="Foreground" Value="#87CEFA"/>
                                 <Setter Property="BorderBrush" Value="#21262D"/>
-                                <Setter Property="BorderThickness" Value="0,0,0,0.5"/>
+
                             </Style>
 
                             <Style TargetType="DataGridRow">

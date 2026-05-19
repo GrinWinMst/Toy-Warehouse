@@ -271,11 +271,45 @@ namespace WarehouseApp
             }
         }
 
-        private void AddButton_Click(object sender, RoutedEventArgs e)
+        private async void AddButton_Click(object sender, RoutedEventArgs e)
         {
-            statusText.Text = "Открытие формы добавления...";
-            MessageBox.Show("Форма добавления записи будет открыта здесь", "Добавление",
-                          MessageBoxButton.OK, MessageBoxImage.Information);
+            string tableName = "";
+
+            if (navProducts.IsChecked == true)
+                tableName = "products";
+            else if (navStock.IsChecked == true)
+                tableName = "stock";
+            else if (navCounterparties.IsChecked == true)
+                tableName = "counterparties";
+            else if (navContacts.IsChecked == true)
+                tableName = "contacts";
+            else if (navOperations.IsChecked == true)
+                tableName = "operations";
+            else if (navOperationItems.IsChecked == true)
+                tableName = "operationitems";
+            else
+                return;
+
+            var dialog = new AddItemDialog(tableName);
+            dialog.Owner = this;
+
+            if (dialog.ShowDialog() == true)
+            {
+                var formData = dialog.FormData;
+
+                // Формируем сообщение с введёнными данными
+                string message = "Введённые данные:\n\n";
+                foreach (var item in formData)
+                {
+                    message += $"{item.Key}: {item.Value}\n";
+                }
+
+                MessageBox.Show(message, "Новая запись", MessageBoxButton.OK, MessageBoxImage.Information);
+                statusText.Text = $"Добавлена новая запись в {tableName}";
+
+                // Здесь будет вызов API после его подключения
+                // await _apiService.CreateXXX(...);
+            }
         }
 
         private void DeleteButton_Click(object sender, RoutedEventArgs e)
@@ -309,6 +343,11 @@ namespace WarehouseApp
                 var count = (dataGrid.ItemsSource as System.Collections.IEnumerable)?.Cast<object>().Count() ?? 0;
                 statusText.Text = $"Записей: {count} | Готово";
             }
+        }
+
+        private void dataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+
         }
     }
 }

@@ -30,3 +30,5 @@ C:\Users\Roman\source\repos\vista2504\Toy-Warehouse\Toy-Warehouse\obj\Debug\Toy-
 C:\Users\Roman\source\repos\vista2504\Toy-Warehouse\Toy-Warehouse\bin\Debug\Toy-Warehouse.exe.config
 C:\Users\Roman\source\repos\vista2504\Toy-Warehouse\Toy-Warehouse\bin\Debug\Toy-Warehouse.exe
 C:\Users\Roman\source\repos\vista2504\Toy-Warehouse\Toy-Warehouse\bin\Debug\Toy-Warehouse.pdb
+C:\Users\Roman\source\repos\vista2504\Toy-Warehouse\Toy-Warehouse\obj\Debug\AddItemDialog.baml
+C:\Users\Roman\source\repos\vista2504\Toy-Warehouse\Toy-Warehouse\obj\Debug\AddItemDialog.g.cs
