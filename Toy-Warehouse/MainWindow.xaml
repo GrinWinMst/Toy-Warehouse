@@ -1,0 +1,137 @@
+﻿<Window x:Class="WarehouseApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Складской учёт" Height="700" Width="1200"
+        WindowStartupLocation="CenterScreen"
+        Background="#0D1117">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="260"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Боковое меню -->
+        <Border Grid.Column="0" Background="#161B22">
+            <StackPanel Margin="0,20,0,0">
+                <TextBlock Text="📦 СКЛАДУЧЕТ" FontSize="20" FontWeight="Bold" Foreground="#58A6FF" 
+                           HorizontalAlignment="Center" Margin="0,0,0,35"/>
+
+                <RadioButton x:Name="navProducts" Content="📦 Товары" Style="{StaticResource DarkNavButtonStyle}" 
+                             GroupName="Navigation" IsChecked="True" Checked="Nav_Checked"/>
+                <RadioButton x:Name="navStock" Content="📊 Остатки" Style="{StaticResource DarkNavButtonStyle}" 
+                             GroupName="Navigation" Checked="Nav_Checked"/>
+                <RadioButton x:Name="navCounterparties" Content="🏢 Контрагенты" Style="{StaticResource DarkNavButtonStyle}" 
+                             GroupName="Navigation" Checked="Nav_Checked"/>
+                <RadioButton x:Name="navContacts" Content="📞 Контакты" Style="{StaticResource DarkNavButtonStyle}" 
+                             GroupName="Navigation" Checked="Nav_Checked"/>
+                <RadioButton x:Name="navOperations" Content="🔄 Операции" Style="{StaticResource DarkNavButtonStyle}" 
+                             GroupName="Navigation" Checked="Nav_Checked"/>
+                <RadioButton x:Name="navOperationItems" Content="📋 Детали операций" Style="{StaticResource DarkNavButtonStyle}" 
+                             GroupName="Navigation" Checked="Nav_Checked"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Основная область -->
+        <Grid Grid.Column="1" Background="#0D1117">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="65"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Верхняя панель -->
+            <Border Grid.Row="0" Background="#161B22" BorderBrush="#21262D" BorderThickness="0,0,0,1">
+                <Grid Margin="20,0">
+                    <TextBlock x:Name="titleText" Text="Товары" VerticalAlignment="Center" 
+                               FontSize="24" FontWeight="SemiBold" Foreground="#E6EDF3"/>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Content="➕ Добавить" Style="{StaticResource DarkPrimaryButton}" 
+                                Click="AddButton_Click" Margin="0,0,12,0"/>
+                        <Button Content="🗑 Удалить" Style="{StaticResource DarkDangerButton}" 
+                                Click="DeleteButton_Click" Margin="0,0,12,0"/>
+                        <Button Content="🔄 Обновить" Style="{StaticResource DarkSecondaryButton}" 
+                                Click="RefreshButton_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Фильтры -->
+            <Border Grid.Row="1" Background="#161B22" Margin="20,15,20,0" CornerRadius="10" 
+                    Padding="15" BorderBrush="#21262D" BorderThickness="1">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔍 Поиск:" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#8B949E"/>
+                    <TextBox x:Name="searchBox" Width="220" Margin="0,0,25,0" 
+                             Style="{StaticResource DarkTextBox}" TextChanged="SearchBox_TextChanged"/>
+
+                    <TextBlock x:Name="filterLabel" Text="🎯 Фильтр:" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#8B949E"/>
+                    <ComboBox x:Name="filterCombo" Width="150" Style="{StaticResource DarkComboBox}" Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Таблица -->
+            <Border Grid.Row="2" Background="#161B22" Margin="20" CornerRadius="10" 
+                    BorderBrush="#21262D" BorderThickness="1">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                    <DataGrid x:Name="dataGrid" AutoGenerateColumns="False" IsReadOnly="True" 
+                              SelectionMode="Single" SelectionUnit="FullRow"
+                              RowHeight="42" HeadersVisibility="Column"
+                              BorderThickness="0" 
+                              Background="#161B22"
+                              Foreground="#E6EDF3"
+                              GridLinesVisibility="Horizontal"
+                              VerticalScrollBarVisibility="Auto">
+                        <DataGrid.Resources>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#2D3A5E"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFF"/>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#161B22"/>
+
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#0D1117"/>
+                                <Setter Property="Foreground" Value="#58A6FF"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="Height" Value="48"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                <Setter Property="BorderBrush" Value="#21262D"/>
+                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                            </Style>
+
+                            <Style TargetType="DataGridCell">
+
+                                <Setter Property="Padding" Value="10,0"/>
+                                <Setter Property="Foreground" Value="#87CEFA"/>
+                                <Setter Property="BorderBrush" Value="#21262D"/>
+
+                            </Style>
+
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Background" Value="#161B22"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="#2D3A5E"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#21262D"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.Resources>
+                    </DataGrid>
+                </ScrollViewer>
+            </Border>
+
+            <!-- Статус-бар -->
+            <StatusBar Grid.Row="2" VerticalAlignment="Bottom" Background="#161B22" 
+                       Foreground="#8B949E" Height="32">
+                <StatusBarItem>
+                    <TextBlock x:Name="statusText" Text="Готово" />
+                </StatusBarItem>
+                <Separator Style="{StaticResource DarkSeparator}"/>
+                <StatusBarItem>
+                    <TextBlock Text="⚡ Складская система" Margin="10,0,0,0"/>
+                </StatusBarItem>
+            </StatusBar>
+        </Grid>
+    </Grid>
+</Window>
