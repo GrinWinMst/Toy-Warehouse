@@ -1,12 +1,14 @@
-﻿using System;
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 
 namespace WarehouseApp
 {
-    // Временые модели данных
+    // Реальные модели данных для биндинга
     public class Product
     {
         public int Id { get; set; }
@@ -16,17 +18,18 @@ namespace WarehouseApp
         public decimal Price { get; set; }
         public DateTime CreatedAt { get; set; }
         public string FormattedPrice => $"{Price:N0} ₽";
-        public string FormattedDate => CreatedAt.ToString("dd.MM.yyyy");
+        public string FormattedDate => CreatedAt.ToLocalTime().ToString("dd.MM.yyyy");
     }
 
     public class Stock
     {
-        public int Id { get; set; }
         public int ProductId { get; set; }
         public string ProductName { get; set; }
-        public int Quantity { get; set; }
+        public string ProductArticle { get; set; }
+        public string Unit { get; set; }
+        public decimal Quantity { get; set; }
         public DateTime UpdatedAt { get; set; }
-        public string FormattedDate => UpdatedAt.ToString("dd.MM.yyyy HH:mm");
+        public string FormattedDate => UpdatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
         public string QuantityWarning => Quantity < 10 ? $"⚠️ {Quantity}" : Quantity.ToString();
     }
 
@@ -34,7 +37,7 @@ namespace WarehouseApp
     {
         public int Id { get; set; }
         public string Name { get; set; }
-        public string Type { get; set; }
+        public string Type { get; set; } // Клиент, Поставщик, Оба
         public string INN { get; set; }
         public string Address { get; set; }
     }
@@ -51,106 +54,267 @@ namespace WarehouseApp
     public class Operation
     {
         public int Id { get; set; }
-        public string Type { get; set; }
+        public string Type { get; set; } // Приход, Расход, Перемещение, Списание
         public DateTime Date { get; set; }
         public string Comment { get; set; }
         public int CounterpartyId { get; set; }
         public string CounterpartyName { get; set; }
-        public string FormattedDate => Date.ToString("dd.MM.yyyy");
+        public string FormattedDate => Date.ToLocalTime().ToString("dd.MM.yyyy");
     }
 
     public class OperationItem
     {
-        public int Id { get; set; }
         public int OperationId { get; set; }
         public int ProductId { get; set; }
         public string ProductName { get; set; }
-        public int Quantity { get; set; }
+        public decimal Quantity { get; set; }
         public decimal Price { get; set; }
         public decimal Total => Quantity * Price;
         public string FormattedPrice => $"{Price:N0} ₽";
         public string FormattedTotal => $"{Total:N0} ₽";
     }
 
+    // Классы-отчеты для аналитики
+    public class TopProductReportRow
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; }
+        public string ProductArticle { get; set; }
+        public string Unit { get; set; }
+        public decimal TotalQuantity { get; set; }
+        public decimal TotalAmount { get; set; }
+        public int OperationsCount { get; set; }
+        public string FormattedAmount => $"{TotalAmount:N0} ₽";
+    }
+
+    public class TurnoverReportRow
+    {
+        public string FormattedDate { get; set; }
+        public decimal IncomeAmount { get; set; }
+        public decimal SaleAmount { get; set; }
+        public string FormattedIncome => $"{IncomeAmount:N0} ₽";
+        public string FormattedSale => $"{SaleAmount:N0} ₽";
+    }
+
+    public class LowStockReportRow
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; }
+        public string ProductArticle { get; set; }
+        public decimal CurrentQuantity { get; set; }
+        public string Unit { get; set; }
+        public decimal MinQuantity { get; set; }
+        public string CurrentQuantityWarning => CurrentQuantity < MinQuantity ? $"⚠️ {CurrentQuantity}" : CurrentQuantity.ToString();
+    }
+
     public partial class MainWindow : Window
     {
-        private ObservableCollection<Product> _products;
-        private ObservableCollection<Stock> _stock;
-        private ObservableCollection<Counterparty> _counterparties;
-        private ObservableCollection<Contact> _contacts;
-        private ObservableCollection<Operation> _operations;
-        private ObservableCollection<OperationItem> _operationItems;
+        private ObservableCollection<Product> _products = new ObservableCollection<Product>();
+        private ObservableCollection<Stock> _stock = new ObservableCollection<Stock>();
+        private ObservableCollection<Counterparty> _counterparties = new ObservableCollection<Counterparty>();
+        private ObservableCollection<Contact> _contacts = new ObservableCollection<Contact>();
+        private ObservableCollection<Operation> _operations = new ObservableCollection<Operation>();
+        private ObservableCollection<OperationItem> _operationItems = new ObservableCollection<OperationItem>();
 
         public MainWindow()
         {
             InitializeComponent();
-
-           
             this.Loaded += MainWindow_Loaded;
         }
 
-        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            
-            InitializeSampleData();
-            ConfigureDataGrids();
-            UpdateStatusBar();
+            // Инициализация дат для аналитики
+            dpTopFrom.SelectedDate = DateTime.Now.AddDays(-30);
+            dpTopTo.SelectedDate = DateTime.Now;
+            dpTurnoverFrom.SelectedDate = DateTime.Now.AddDays(-30);
+            dpTurnoverTo.SelectedDate = DateTime.Now;
+
+            statusText.Text = "Подключение к API...";
+            await RefreshActiveTabAsync();
         }
 
-        private void InitializeSampleData()
+        // Асинхронная загрузка данных с API
+        private async Task RefreshActiveTabAsync()
         {
-            _products = new ObservableCollection<Product>
+            try
             {
-                new Product { Id = 1, Name = "Ноутбук Lenovo", Article = "LNV-001", Unit = "шт", Price = 45000, CreatedAt = DateTime.Now.AddDays(-30) },
-                new Product { Id = 2, Name = "Мышь беспроводная", Article = "MOU-002", Unit = "шт", Price = 1200, CreatedAt = DateTime.Now.AddDays(-20) },
-                new Product { Id = 3, Name = "Клавиатура механическая", Article = "KEY-003", Unit = "шт", Price = 3500, CreatedAt = DateTime.Now.AddDays(-15) },
-                new Product { Id = 4, Name = "Монитор 24''", Article = "MON-004", Unit = "шт", Price = 18500, CreatedAt = DateTime.Now.AddDays(-10) },
-                new Product { Id = 5, Name = "SSD диск 1TB", Article = "SSD-005", Unit = "шт", Price = 8900, CreatedAt = DateTime.Now.AddDays(-5) }
-            };
+                if (dataGrid == null) return;
 
-            _stock = new ObservableCollection<Stock>
-            {
-                new Stock { Id = 1, ProductId = 1, ProductName = "Ноутбук Lenovo", Quantity = 12, UpdatedAt = DateTime.Now },
-                new Stock { Id = 2, ProductId = 2, ProductName = "Мышь беспроводная", Quantity = 45, UpdatedAt = DateTime.Now },
-                new Stock { Id = 3, ProductId = 3, ProductName = "Клавиатура механическая", Quantity = 8, UpdatedAt = DateTime.Now },
-                new Stock { Id = 4, ProductId = 4, ProductName = "Монитор 24''", Quantity = 3, UpdatedAt = DateTime.Now },
-                new Stock { Id = 5, ProductId = 5, ProductName = "SSD диск 1TB", Quantity = 0, UpdatedAt = DateTime.Now }
-            };
+                // Переключение видимости в зависимости от того, выбрана ли аналитика
+                if (navAnalytics.IsChecked == true)
+                {
+                    filtersBorder.Visibility = Visibility.Collapsed;
+                    gridBorder.Visibility = Visibility.Collapsed;
+                    analyticsPanel.Visibility = Visibility.Visible;
+                    addButton.Visibility = Visibility.Collapsed;
+                    deleteButton.Visibility = Visibility.Collapsed;
+                    titleText.Text = "Аналитика";
+                    
+                    // По умолчанию загружаем данные первой вкладки аналитики
+                    await RefreshAnalyticsAsync();
+                    statusText.Text = "Аналитика загружена";
+                    return;
+                }
 
-            _counterparties = new ObservableCollection<Counterparty>
-            {
-                new Counterparty { Id = 1, Name = "ООО ТехноПоставка", Type = "Поставщик", INN = "7701234567", Address = "г. Москва, ул. Складская, 15" },
-                new Counterparty { Id = 2, Name = "ИП Иванов А.А.", Type = "Покупатель", INN = "7723456789", Address = "г. Москва, ул. Торговая, 8" },
-                new Counterparty { Id = 3, Name = "ЗАО Электроника", Type = "Оба", INN = "7734567890", Address = "г. Санкт-Петербург, Невский пр., 100" }
-            };
+                // Обычные разделы
+                filtersBorder.Visibility = Visibility.Visible;
+                gridBorder.Visibility = Visibility.Visible;
+                analyticsPanel.Visibility = Visibility.Collapsed;
+                addButton.Visibility = Visibility.Visible;
+                deleteButton.Visibility = Visibility.Visible;
 
-            _contacts = new ObservableCollection<Contact>
-            {
-                new Contact { Id = 1, CounterpartyId = 1, CounterpartyName = "ООО ТехноПоставка", Name = "Петров Иван", Phone = "+7 (495) 123-45-67" },
-                new Contact { Id = 2, CounterpartyId = 1, CounterpartyName = "ООО ТехноПоставка", Name = "Сидорова Мария", Phone = "+7 (495) 765-43-21" },
-                new Contact { Id = 3, CounterpartyId = 2, CounterpartyName = "ИП Иванов А.А.", Name = "Иванов Алексей", Phone = "+7 (916) 111-22-33" },
-                new Contact { Id = 4, CounterpartyId = 3, CounterpartyName = "ЗАО Электроника", Name = "Смирнов Дмитрий", Phone = "+7 (812) 444-55-66" }
-            };
+                ConfigureDataGrids();
 
-            _operations = new ObservableCollection<Operation>
-            {
-                new Operation { Id = 1, Type = "Приход", Date = DateTime.Now.AddDays(-5), Comment = "Поставка товаров", CounterpartyId = 1, CounterpartyName = "ООО ТехноПоставка" },
-                new Operation { Id = 2, Type = "Расход", Date = DateTime.Now.AddDays(-3), Comment = "Продажа клиенту", CounterpartyId = 2, CounterpartyName = "ИП Иванов А.А." },
-                new Operation { Id = 3, Type = "Приход", Date = DateTime.Now.AddDays(-1), Comment = "Дополнительная поставка", CounterpartyId = 1, CounterpartyName = "ООО ТехноПоставка" }
-            };
+                if (navProducts.IsChecked == true)
+                {
+                    statusText.Text = "Загрузка товаров...";
+                    var data = await ApiClient.GetProductsAsync();
+                    _products.Clear();
+                    foreach (var d in data)
+                    {
+                        _products.Add(new Product
+                        {
+                            Id = Convert.ToInt32(d["id"]),
+                            Name = d["name"]?.ToString(),
+                            Article = d["article"]?.ToString(),
+                            Unit = d["unit"]?.ToString(),
+                            Price = Convert.ToDecimal(d["price"]),
+                            CreatedAt = DateTime.Parse(d["createdAt"]?.ToString())
+                        });
+                    }
+                    dataGrid.ItemsSource = _products;
+                }
+                else if (navStock.IsChecked == true)
+                {
+                    statusText.Text = "Загрузка остатков...";
+                    var data = await ApiClient.GetStockAsync();
+                    _stock.Clear();
+                    foreach (var d in data)
+                    {
+                        _stock.Add(new Stock
+                        {
+                            ProductId = Convert.ToInt32(d["productId"]),
+                            ProductName = d["productName"]?.ToString(),
+                            ProductArticle = d["productArticle"]?.ToString(),
+                            Unit = d["unit"]?.ToString(),
+                            Quantity = Convert.ToDecimal(d["quantity"]),
+                            UpdatedAt = DateTime.Parse(d["updatedAt"]?.ToString())
+                        });
+                    }
+                    dataGrid.ItemsSource = _stock;
+                }
+                else if (navCounterparties.IsChecked == true)
+                {
+                    statusText.Text = "Загрузка контрагентов...";
+                    var data = await ApiClient.GetCounterpartiesAsync();
+                    _counterparties.Clear();
+                    foreach (var d in data)
+                    {
+                        string typeStr = d["type"]?.ToString();
+                        if (typeStr == "0" || typeStr == "Client") typeStr = "Покупатель";
+                        else if (typeStr == "1" || typeStr == "Supplier") typeStr = "Поставщик";
+                        else if (typeStr == "2" || typeStr == "Company") typeStr = "Оба";
 
-            _operationItems = new ObservableCollection<OperationItem>
+                        _counterparties.Add(new Counterparty
+                        {
+                            Id = Convert.ToInt32(d["id"]),
+                            Name = d["name"]?.ToString(),
+                            Type = typeStr,
+                            INN = d.ContainsKey("inn") && d["inn"] != null ? d["inn"].ToString() : "—",
+                            Address = d.ContainsKey("address") && d["address"] != null ? d["address"].ToString() : "—"
+                        });
+                    }
+                    dataGrid.ItemsSource = _counterparties;
+                }
+                else if (navContacts.IsChecked == true)
+                {
+                    statusText.Text = "Загрузка контактов...";
+                    var data = await ApiClient.GetCounterpartiesAsync();
+                    _contacts.Clear();
+                    foreach (var cp in data)
+                    {
+                        int cpId = Convert.ToInt32(cp["id"]);
+                        string cpName = cp["name"]?.ToString();
+                        if (cp.ContainsKey("contacts") && cp["contacts"] is System.Collections.IEnumerable contactsArr)
+                        {
+                            foreach (Dictionary<string, object> c in contactsArr)
+                            {
+                                _contacts.Add(new Contact
+                                {
+                                    Id = Convert.ToInt32(c["id"]),
+                                    CounterpartyId = cpId,
+                                    CounterpartyName = cpName,
+                                    Name = c["name"]?.ToString(),
+                                    Phone = c.ContainsKey("phone") && c["phone"] != null ? c["phone"].ToString() : "—"
+                                });
+                            }
+                        }
+                    }
+                    dataGrid.ItemsSource = _contacts;
+                }
+                else if (navOperations.IsChecked == true)
+                {
+                    statusText.Text = "Загрузка операций...";
+                    var data = await ApiClient.GetOperationsAsync();
+                    _operations.Clear();
+                    foreach (var d in data)
+                    {
+                        string typeStr = d["type"]?.ToString();
+                        if (typeStr == "0" || typeStr == "Income") typeStr = "Приход";
+                        else if (typeStr == "1" || typeStr == "Sale") typeStr = "Расход";
+                        else if (typeStr == "2" || typeStr == "Transfer") typeStr = "Перемещение";
+                        else if (typeStr == "3" || typeStr == "WriteOff") typeStr = "Списание";
+
+                        _operations.Add(new Operation
+                        {
+                            Id = Convert.ToInt32(d["id"]),
+                            Type = typeStr,
+                            Date = DateTime.Parse(d["date"]?.ToString()),
+                            Comment = d.ContainsKey("comment") && d["comment"] != null ? d["comment"].ToString() : "",
+                            CounterpartyId = d.ContainsKey("counterpartyId") && d["counterpartyId"] != null ? Convert.ToInt32(d["counterpartyId"]) : 0,
+                            CounterpartyName = d.ContainsKey("counterpartyName") && d["counterpartyName"] != null ? d["counterpartyName"].ToString() : "—"
+                        });
+                    }
+                    dataGrid.ItemsSource = _operations;
+                }
+                else if (navOperationItems.IsChecked == true)
+                {
+                    statusText.Text = "Загрузка деталей операций...";
+                    var data = await ApiClient.GetOperationsAsync();
+                    _operationItems.Clear();
+                    foreach (var op in data)
+                    {
+                        int opId = Convert.ToInt32(op["id"]);
+                        if (op.ContainsKey("items") && op["items"] is System.Collections.IEnumerable itemsArr)
+                        {
+                            foreach (Dictionary<string, object> i in itemsArr)
+                            {
+                                _operationItems.Add(new OperationItem
+                                {
+                                    OperationId = opId,
+                                    ProductId = Convert.ToInt32(i["productId"]),
+                                    ProductName = i["productName"]?.ToString(),
+                                    Quantity = Convert.ToDecimal(i["quantity"]),
+                                    Price = Convert.ToDecimal(i["price"])
+                                });
+                            }
+                        }
+                    }
+                    dataGrid.ItemsSource = _operationItems;
+                }
+
+                UpdateStatusBar();
+            }
+            catch (Exception ex)
             {
-                new OperationItem { Id = 1, OperationId = 1, ProductId = 1, ProductName = "Ноутбук Lenovo", Quantity = 5, Price = 45000 },
-                new OperationItem { Id = 2, OperationId = 1, ProductId = 2, ProductName = "Мышь беспроводная", Quantity = 20, Price = 1200 },
-                new OperationItem { Id = 3, OperationId = 2, ProductId = 3, ProductName = "Клавиатура механическая", Quantity = 2, Price = 3500 },
-                new OperationItem { Id = 4, OperationId = 3, ProductId = 5, ProductName = "SSD диск 1TB", Quantity = 10, Price = 8900 }
-            };
+                MessageBox.Show(ex.Message, "Ошибка подключения к API", MessageBoxButton.OK, MessageBoxImage.Error);
+                statusText.Text = "Ошибка API";
+            }
         }
 
         private void ConfigureDataGrids()
         {
-            
             if (dataGrid == null) return;
 
             dataGrid.Columns.Clear();
@@ -169,7 +333,6 @@ namespace WarehouseApp
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Ед. изм.", Binding = new System.Windows.Data.Binding("Unit"), Width = 100 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Цена", Binding = new System.Windows.Data.Binding("FormattedPrice"), Width = 120 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Дата создания", Binding = new System.Windows.Data.Binding("FormattedDate"), Width = 130 });
-                dataGrid.ItemsSource = _products;
             }
             else if (navStock.IsChecked == true)
             {
@@ -177,11 +340,12 @@ namespace WarehouseApp
                 filterLabel.Visibility = Visibility.Collapsed;
                 filterCombo.Visibility = Visibility.Collapsed;
 
-                dataGrid.Columns.Add(new DataGridTextColumn { Header = "ID", Binding = new System.Windows.Data.Binding("Id"), Width = 60 });
+                dataGrid.Columns.Add(new DataGridTextColumn { Header = "ID товара", Binding = new System.Windows.Data.Binding("ProductId"), Width = 100 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Товар", Binding = new System.Windows.Data.Binding("ProductName"), Width = 250 });
+                dataGrid.Columns.Add(new DataGridTextColumn { Header = "Артикул", Binding = new System.Windows.Data.Binding("ProductArticle"), Width = 120 });
+                dataGrid.Columns.Add(new DataGridTextColumn { Header = "Ед. изм.", Binding = new System.Windows.Data.Binding("Unit"), Width = 100 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Количество", Binding = new System.Windows.Data.Binding("QuantityWarning"), Width = 120 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Дата обновления", Binding = new System.Windows.Data.Binding("FormattedDate"), Width = 150 });
-                dataGrid.ItemsSource = _stock;
             }
             else if (navCounterparties.IsChecked == true)
             {
@@ -194,7 +358,6 @@ namespace WarehouseApp
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Тип", Binding = new System.Windows.Data.Binding("Type"), Width = 120 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "ИНН", Binding = new System.Windows.Data.Binding("INN"), Width = 150 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Адрес", Binding = new System.Windows.Data.Binding("Address"), Width = 300 });
-                dataGrid.ItemsSource = _counterparties;
             }
             else if (navContacts.IsChecked == true)
             {
@@ -206,7 +369,6 @@ namespace WarehouseApp
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Контрагент", Binding = new System.Windows.Data.Binding("CounterpartyName"), Width = 200 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Контактное лицо", Binding = new System.Windows.Data.Binding("Name"), Width = 180 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Телефон", Binding = new System.Windows.Data.Binding("Phone"), Width = 150 });
-                dataGrid.ItemsSource = _contacts;
             }
             else if (navOperations.IsChecked == true)
             {
@@ -221,7 +383,6 @@ namespace WarehouseApp
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Дата", Binding = new System.Windows.Data.Binding("FormattedDate"), Width = 120 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Контрагент", Binding = new System.Windows.Data.Binding("CounterpartyName"), Width = 200 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Комментарий", Binding = new System.Windows.Data.Binding("Comment"), Width = 250 });
-                dataGrid.ItemsSource = _operations;
             }
             else if (navOperationItems.IsChecked == true)
             {
@@ -229,20 +390,18 @@ namespace WarehouseApp
                 filterLabel.Visibility = Visibility.Collapsed;
                 filterCombo.Visibility = Visibility.Collapsed;
 
-                dataGrid.Columns.Add(new DataGridTextColumn { Header = "ID", Binding = new System.Windows.Data.Binding("Id"), Width = 60 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "ID операции", Binding = new System.Windows.Data.Binding("OperationId"), Width = 100 });
+                dataGrid.Columns.Add(new DataGridTextColumn { Header = "ID товара", Binding = new System.Windows.Data.Binding("ProductId"), Width = 100 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Товар", Binding = new System.Windows.Data.Binding("ProductName"), Width = 200 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Кол-во", Binding = new System.Windows.Data.Binding("Quantity"), Width = 80 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Цена", Binding = new System.Windows.Data.Binding("FormattedPrice"), Width = 120 });
                 dataGrid.Columns.Add(new DataGridTextColumn { Header = "Сумма", Binding = new System.Windows.Data.Binding("FormattedTotal"), Width = 130 });
-                dataGrid.ItemsSource = _operationItems;
             }
         }
 
-        private void Nav_Checked(object sender, RoutedEventArgs e)
+        private async void Nav_Checked(object sender, RoutedEventArgs e)
         {
-            ConfigureDataGrids();
-            UpdateStatusBar();
+            await RefreshActiveTabAsync();
         }
 
         private void SearchBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
@@ -297,43 +456,150 @@ namespace WarehouseApp
             {
                 var formData = dialog.FormData;
 
-                // Формируем сообщение с введёнными данными
-                string message = "Введённые данные:\n\n";
-                foreach (var item in formData)
+                try
                 {
-                    message += $"{item.Key}: {item.Value}\n";
+                    statusText.Text = "Добавление записи...";
+                    
+                    if (tableName == "products")
+                    {
+                        var product = new Dictionary<string, object>
+                        {
+                            { "name", formData["name"] },
+                            { "article", formData["article"] },
+                            { "unit", formData["unit"] },
+                            { "price", Convert.ToDecimal(formData["price"]) }
+                        };
+                        await ApiClient.CreateProductAsync(product);
+                    }
+                    else if (tableName == "counterparties")
+                    {
+                        string typeStr = formData["type"]?.ToString();
+                        string apiType = "Company";
+                        if (typeStr == "Покупатель") apiType = "Client";
+                        else if (typeStr == "Поставщик") apiType = "Supplier";
+
+                        var counterparty = new Dictionary<string, object>
+                        {
+                            { "name", formData["name"] },
+                            { "type", apiType },
+                            { "inn", formData["inn"] },
+                            { "address", formData["address"] },
+                            { "contacts", new List<object>() }
+                        };
+                        await ApiClient.CreateCounterpartyAsync(counterparty);
+                    }
+                    else if (tableName == "contacts")
+                    {
+                        int cpId = Convert.ToInt32(formData["counterpartyId"]);
+                        // Загружаем контрагента по ID
+                        var cp = await ApiClient.GetAsync<Dictionary<string, object>>($"counterparties/{cpId}");
+                        
+                        var contactsList = new List<object>();
+                        if (cp.ContainsKey("contacts") && cp["contacts"] is System.Collections.IEnumerable contactsArr)
+                        {
+                            foreach (var c in contactsArr) contactsList.Add(c);
+                        }
+                        
+                        contactsList.Add(new Dictionary<string, object>
+                        {
+                            { "name", formData["name"] },
+                            { "phone", formData["phone"] }
+                        });
+                        
+                        // В бэкенде DTO ожидает тип в виде строки или int
+                        string cpType = cp["type"]?.ToString();
+                        
+                        var updatedCp = new Dictionary<string, object>
+                        {
+                            { "name", cp["name"] },
+                            { "type", cpType },
+                            { "inn", cp.ContainsKey("inn") ? cp["inn"] : "" },
+                            { "address", cp.ContainsKey("address") ? cp["address"] : "" },
+                            { "contacts", contactsList }
+                        };
+                        
+                        await ApiClient.UpdateCounterpartyAsync(cpId, updatedCp);
+                    }
+                    else if (tableName == "operations")
+                    {
+                        // В AddItemDialog вводится: тип, комментарий, ID контрагента.
+                        // Также нужен список товаров (в UI AddItemDialog этого нет, так что отправляем пустой список или один дефолтный)
+                        string formTypeStr = formData["type"]?.ToString();
+                        string apiType = formTypeStr == "Приход" ? "income" : "sale";
+                        
+                        int cpId = Convert.ToInt32(formData["counterpartyId"]);
+                        
+                        var operation = new Dictionary<string, object>
+                        {
+                            { "counterpartyId", cpId },
+                            { "comment", formData["comment"] },
+                            { "items", new List<object>() } // создаем пустую шапку операции
+                        };
+                        
+                        await ApiClient.CreateOperationAsync(apiType, operation);
+                    }
+                    else
+                    {
+                        MessageBox.Show("Для добавления записей этой таблицы воспользуйтесь связующими разделами.", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+
+                    statusText.Text = "Запись успешно добавлена!";
+                    await RefreshActiveTabAsync();
                 }
-
-                MessageBox.Show(message, "Новая запись", MessageBoxButton.OK, MessageBoxImage.Information);
-                statusText.Text = $"Добавлена новая запись в {tableName}";
-
-                // Здесь будет вызов API после его подключения
-                // await _apiService.CreateXXX(...);
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message, "Ошибка при добавлении", MessageBoxButton.OK, MessageBoxImage.Error);
+                    statusText.Text = "Ошибка сохранения";
+                }
             }
         }
 
-        private void DeleteButton_Click(object sender, RoutedEventArgs e)
+        private async void DeleteButton_Click(object sender, RoutedEventArgs e)
         {
-            if (dataGrid?.SelectedItem != null)
-            {
-                var result = MessageBox.Show("Удалить выбранную запись?", "Подтверждение",
-                                            MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (result == MessageBoxResult.Yes)
-                {
-                    statusText.Text = "Запись удалена";
-                }
-            }
-            else
+            var selectedItem = dataGrid?.SelectedItem;
+            if (selectedItem == null)
             {
                 MessageBox.Show("Выберите запись для удаления", "Внимание",
                               MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var result = MessageBox.Show("Удалить выбранную запись?", "Подтверждение",
+                                        MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (result != MessageBoxResult.Yes) return;
+
+            try
+            {
+                statusText.Text = "Удаление записи...";
+
+                if (selectedItem is Product product)
+                {
+                    await ApiClient.DeleteProductAsync(product.Id);
+                }
+                else if (selectedItem is Counterparty cp)
+                {
+                    await ApiClient.DeleteCounterpartyAsync(cp.Id);
+                }
+                else
+                {
+                    MessageBox.Show("Каскадное удаление поддерживается для основных справочников (Товары, Контрагенты).", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                statusText.Text = "Запись успешно удалена";
+                await RefreshActiveTabAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Ошибка при удалении", MessageBoxButton.OK, MessageBoxImage.Error);
+                statusText.Text = "Ошибка удаления";
             }
         }
 
-        private void RefreshButton_Click(object sender, RoutedEventArgs e)
+        private async void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            ConfigureDataGrids();
-            statusText.Text = $"Данные обновлены: {DateTime.Now:HH:mm:ss}";
+            await RefreshActiveTabAsync();
         }
 
         private void UpdateStatusBar()
@@ -341,13 +607,179 @@ namespace WarehouseApp
             if (dataGrid?.ItemsSource != null)
             {
                 var count = (dataGrid.ItemsSource as System.Collections.IEnumerable)?.Cast<object>().Count() ?? 0;
-                statusText.Text = $"Записей: {count} | Готово";
+                statusText.Text = $"Записей: {count} | Данные актуальны на: {DateTime.Now:HH:mm:ss}";
             }
+        }
+
+        // ─── ЛОГИКА ФОРМЫ АНАЛИТИКИ ────────────────────────────────────────────────
+
+        private async void AnalyticsTab_Checked(object sender, RoutedEventArgs e)
+        {
+            await RefreshAnalyticsAsync();
+        }
+
+        private async Task RefreshAnalyticsAsync()
+        {
+            if (analyticsPanel == null) return;
+
+            if (tabTopProducts.IsChecked == true)
+            {
+                panelTopProducts.Visibility = Visibility.Visible;
+                panelTurnover.Visibility = Visibility.Collapsed;
+                panelLowStock.Visibility = Visibility.Collapsed;
+                await LoadTopProductsAsync();
+            }
+            else if (tabTurnover.IsChecked == true)
+            {
+                panelTopProducts.Visibility = Visibility.Collapsed;
+                panelTurnover.Visibility = Visibility.Visible;
+                panelLowStock.Visibility = Visibility.Collapsed;
+                await LoadTurnoverAsync();
+            }
+            else if (tabLowStock.IsChecked == true)
+            {
+                panelTopProducts.Visibility = Visibility.Collapsed;
+                panelTurnover.Visibility = Visibility.Collapsed;
+                panelLowStock.Visibility = Visibility.Visible;
+                await LoadLowStockAsync();
+            }
+        }
+
+        // 1. Загрузка лидеров продаж
+        private async Task LoadTopProductsAsync()
+        {
+            try
+            {
+                if (dpTopFrom.SelectedDate == null || dpTopTo.SelectedDate == null) return;
+                
+                string fromStr = dpTopFrom.SelectedDate.Value.ToString("yyyy-MM-dd");
+                string toStr = dpTopTo.SelectedDate.Value.ToString("yyyy-MM-dd");
+                int limit = int.TryParse(txtTopLimit.Text, out int lim) ? lim : 10;
+
+                statusText.Text = "Расчет лидеров продаж...";
+                var data = await ApiClient.GetTopProductsAsync(fromStr, toStr, limit);
+                
+                var list = new List<TopProductReportRow>();
+                foreach (var d in data)
+                {
+                    list.Add(new TopProductReportRow
+                    {
+                        ProductId = Convert.ToInt32(d["productId"]),
+                        ProductName = d["productName"]?.ToString(),
+                        ProductArticle = d["productArticle"]?.ToString(),
+                        Unit = d["unit"]?.ToString(),
+                        TotalQuantity = Convert.ToDecimal(d["totalQuantity"]),
+                        TotalAmount = Convert.ToDecimal(d["totalAmount"]),
+                        OperationsCount = Convert.ToInt32(d["operationsCount"])
+                    });
+                }
+
+                dgTopProducts.ItemsSource = list;
+                statusText.Text = $"Рассчитано лидеров: {list.Count}";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Ошибка загрузки отчета", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // 2. Загрузка финансовых оборотов
+        private async Task LoadTurnoverAsync()
+        {
+            try
+            {
+                if (dpTurnoverFrom.SelectedDate == null || dpTurnoverTo.SelectedDate == null) return;
+
+                string fromStr = dpTurnoverFrom.SelectedDate.Value.ToString("yyyy-MM-dd");
+                string toStr = dpTurnoverTo.SelectedDate.Value.ToString("yyyy-MM-dd");
+
+                statusText.Text = "Расчет финансовых оборотов...";
+                
+                // Получаем TurnoverDto
+                var data = await ApiClient.GetAsync<Dictionary<string, object>>($"analytics/turnover?from={fromStr}&to={toStr}");
+                
+                decimal income = Convert.ToDecimal(data["incomeAmount"]);
+                decimal sales = Convert.ToDecimal(data["saleAmount"]);
+                decimal writeoff = Convert.ToDecimal(data["writeOffAmount"]);
+
+                txtTotalIncome.Text = $"{income:N0} ₽";
+                txtTotalSales.Text = $"{sales:N0} ₽";
+                txtTotalWriteoff.Text = $"{writeoff:N0} ₽";
+
+                var list = new List<TurnoverReportRow>();
+                if (data.ContainsKey("byDay") && data["byDay"] is System.Collections.IEnumerable daysArr)
+                {
+                    foreach (Dictionary<string, object> d in daysArr)
+                    {
+                        DateTime date = DateTime.Parse(d["date"]?.ToString());
+                        list.Add(new TurnoverReportRow
+                        {
+                            FormattedDate = date.ToString("dd.MM.yyyy"),
+                            IncomeAmount = Convert.ToDecimal(d["incomeAmount"]),
+                            SaleAmount = Convert.ToDecimal(d["saleAmount"])
+                        });
+                    }
+                }
+
+                dgTurnover.ItemsSource = list;
+                statusText.Text = "Обороты успешно рассчитаны!";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Ошибка загрузки оборотов", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // 3. Загрузка товаров с дефицитом
+        private async Task LoadLowStockAsync()
+        {
+            try
+            {
+                decimal minQty = decimal.TryParse(txtMinQty.Text, out decimal q) ? q : 5;
+
+                statusText.Text = "Поиск дефицитных товаров...";
+                var data = await ApiClient.GetLowStockAsync(minQty);
+
+                var list = new List<LowStockReportRow>();
+                foreach (var d in data)
+                {
+                    list.Add(new LowStockReportRow
+                    {
+                        ProductId = Convert.ToInt32(d["productId"]),
+                        ProductName = d["productName"]?.ToString(),
+                        ProductArticle = d["productArticle"]?.ToString(),
+                        CurrentQuantity = Convert.ToDecimal(d["currentQuantity"]),
+                        Unit = d["unit"]?.ToString(),
+                        MinQuantity = Convert.ToDecimal(d["minQuantity"])
+                    });
+                }
+
+                dgLowStock.ItemsSource = list;
+                statusText.Text = $"Найдено дефицитных товаров: {list.Count}";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Ошибка поиска дефицита", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void BtnLoadTopProducts_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadTopProductsAsync();
+        }
+
+        private async void BtnLoadTurnover_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadTurnoverAsync();
+        }
+
+        private async void BtnLoadLowStock_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadLowStockAsync();
         }
 
         private void dataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-
         }
     }
 }
