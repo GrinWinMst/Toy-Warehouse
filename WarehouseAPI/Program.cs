@@ -10,9 +10,54 @@ using WarehouseAPI.Services.Interfaces;
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-if (!string.IsNullOrWhiteSpace(connectionString))
+bool usePostgres = false;
+
+if (!string.IsNullOrWhiteSpace(connectionString) && (connectionString.Contains("Host=") || connectionString.Contains("Server=")))
 {
+    string host = "localhost";
+    int port = 5432;
+    
+    try
+    {
+        var parts = connectionString.Split(';')
+            .Select(p => p.Split('='))
+            .Where(p => p.Length == 2)
+            .ToDictionary(p => p[0].Trim(), p => p[1].Trim(), StringComparer.OrdinalIgnoreCase);
+            
+        if (parts.TryGetValue("Host", out var h)) host = h;
+        else if (parts.TryGetValue("Server", out var s)) host = s;
+        
+        if (parts.TryGetValue("Port", out var pStr)) int.TryParse(pStr, out port);
+        
+        // Быстрая проверка доступности порта PostgreSQL по TCP (таймаут 400 мс)
+        using (var tcpClient = new System.Net.Sockets.TcpClient())
+        {
+            var connectTask = tcpClient.ConnectAsync(host, port);
+            if (Task.WhenAny(connectTask, Task.Delay(400)).Result == connectTask)
+            {
+                if (tcpClient.Connected)
+                {
+                    usePostgres = true;
+                }
+            }
+        }
+    }
+    catch
+    {
+        usePostgres = false;
+    }
+}
+
+if (usePostgres)
+{
+    Console.WriteLine("DB CONFIG: PostgreSQL server is active. Using PostgreSQL database.");
     builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+}
+else
+{
+    Console.WriteLine("DB CONFIG: PostgreSQL is unreachable or not configured. Gracefully falling back to SQLite (warehouse.db).");
+    var sqlitePath = Path.Combine(builder.Environment.ContentRootPath, "warehouse.db");
+    builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite($"Data Source={sqlitePath}"));
 }
 
 // CORS
@@ -78,4 +123,28 @@ app.MapGet("/", () => Results.Ok(new { service = "WarehouseAPI", status = "runni
 app.MapGet("/health", () => Results.Ok("ok"));
 
 app.MapControllers();
+
+// Инициализация базы данных и сидирование демонстрационных данных
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        var context = services.GetRequiredService<AppDbContext>();
+        
+        // Создаем БД, если она не существует (автоматически создает все таблицы)
+        context.Database.EnsureCreated();
+        
+        // Наполняем демо-данными
+        await WarehouseAPI.Data.DbSeeder.SeedAsync(context);
+        
+        logger.LogInformation("Database initialized and seeded successfully.");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while initializing the database.");
+    }
+}
+
 app.Run();
