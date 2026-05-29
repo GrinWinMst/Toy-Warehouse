@@ -139,7 +139,18 @@ namespace WarehouseApp
         {
             try
             {
-                if (dataGrid == null) return;
+                // Защита от NullReferenceException во время выполнения InitializeComponent()
+                if (dataGrid == null ||
+                    navAnalytics == null ||
+                    filtersBorder == null ||
+                    gridBorder == null ||
+                    analyticsPanel == null ||
+                    addButton == null ||
+                    deleteButton == null ||
+                    statusText == null)
+                {
+                    return;
+                }
 
                 // Переключение видимости в зависимости от того, выбрана ли аналитика
                 if (navAnalytics.IsChecked == true)
@@ -620,7 +631,17 @@ namespace WarehouseApp
 
         private async Task RefreshAnalyticsAsync()
         {
-            if (analyticsPanel == null) return;
+            // Защита от NullReferenceException во время выполнения InitializeComponent()
+            if (analyticsPanel == null ||
+                tabTopProducts == null ||
+                tabTurnover == null ||
+                tabLowStock == null ||
+                panelTopProducts == null ||
+                panelTurnover == null ||
+                panelLowStock == null)
+            {
+                return;
+            }
 
             if (tabTopProducts.IsChecked == true)
             {
