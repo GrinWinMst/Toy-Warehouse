@@ -21,6 +21,9 @@ public class AnalyticsController : ControllerBase
         [FromQuery] DateTime to,
         [FromQuery] int limit = 10)
     {
+        from = from.ToUniversalTime();
+        to = to.ToUniversalTime();
+
         if (from > to)
             return BadRequest(new { message = "Дата начала не может быть позже даты конца" });
 
@@ -37,6 +40,9 @@ public class AnalyticsController : ControllerBase
         [FromQuery] DateTime from,
         [FromQuery] DateTime to)
     {
+        from = from.ToUniversalTime();
+        to = to.ToUniversalTime();
+
         if (from > to)
             return BadRequest(new { message = "Дата начала не может быть позже даты конца" });
 

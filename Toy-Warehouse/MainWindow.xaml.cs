@@ -140,7 +140,6 @@ namespace WarehouseApp
             try
             {
                 // Защита от NullReferenceException во время выполнения InitializeComponent()
-<<<<<<< HEAD
                 if (dataGrid == null ||
                     navAnalytics == null ||
                     filtersBorder == null ||
@@ -149,16 +148,6 @@ namespace WarehouseApp
                     addButton == null ||
                     deleteButton == null ||
                     statusText == null)
-=======
-                if (dataGrid == null || 
-                    navAnalytics == null || 
-                    filtersBorder == null || 
-                    gridBorder == null || 
-                    analyticsPanel == null || 
-                    addButton == null || 
-                    deleteButton == null || 
-                    statusText == null) 
->>>>>>> c1e87d130678eb0739c4421cac5e6996c3030a36
                 {
                     return;
                 }
@@ -643,21 +632,12 @@ namespace WarehouseApp
         private async Task RefreshAnalyticsAsync()
         {
             // Защита от NullReferenceException во время выполнения InitializeComponent()
-<<<<<<< HEAD
             if (analyticsPanel == null ||
                 tabTopProducts == null ||
                 tabTurnover == null ||
                 tabLowStock == null ||
                 panelTopProducts == null ||
                 panelTurnover == null ||
-=======
-            if (analyticsPanel == null || 
-                tabTopProducts == null || 
-                tabTurnover == null || 
-                tabLowStock == null || 
-                panelTopProducts == null || 
-                panelTurnover == null || 
->>>>>>> c1e87d130678eb0739c4421cac5e6996c3030a36
                 panelLowStock == null)
             {
                 return;

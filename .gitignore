@@ -22,3 +22,9 @@ Thumbs.db
 
 # Optional local env (keep secrets out of git)
 .env
+
+# SQLite database files (не используется, проект на PostgreSQL)
+*.db
+*.db-shm
+*.db-wal
+
