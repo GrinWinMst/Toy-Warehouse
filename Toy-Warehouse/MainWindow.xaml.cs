@@ -161,7 +161,7 @@ namespace WarehouseApp
                     addButton.Visibility = Visibility.Collapsed;
                     deleteButton.Visibility = Visibility.Collapsed;
                     titleText.Text = "Аналитика";
-                    
+
                     // По умолчанию загружаем данные первой вкладки аналитики
                     await RefreshAnalyticsAsync();
                     statusText.Text = "Аналитика загружена";
@@ -470,7 +470,7 @@ namespace WarehouseApp
                 try
                 {
                     statusText.Text = "Добавление записи...";
-                    
+
                     if (tableName == "products")
                     {
                         var product = new Dictionary<string, object>
@@ -504,22 +504,22 @@ namespace WarehouseApp
                         int cpId = Convert.ToInt32(formData["counterpartyId"]);
                         // Загружаем контрагента по ID
                         var cp = await ApiClient.GetAsync<Dictionary<string, object>>($"counterparties/{cpId}");
-                        
+
                         var contactsList = new List<object>();
                         if (cp.ContainsKey("contacts") && cp["contacts"] is System.Collections.IEnumerable contactsArr)
                         {
                             foreach (var c in contactsArr) contactsList.Add(c);
                         }
-                        
+
                         contactsList.Add(new Dictionary<string, object>
                         {
                             { "name", formData["name"] },
                             { "phone", formData["phone"] }
                         });
-                        
+
                         // В бэкенде DTO ожидает тип в виде строки или int
                         string cpType = cp["type"]?.ToString();
-                        
+
                         var updatedCp = new Dictionary<string, object>
                         {
                             { "name", cp["name"] },
@@ -528,7 +528,7 @@ namespace WarehouseApp
                             { "address", cp.ContainsKey("address") ? cp["address"] : "" },
                             { "contacts", contactsList }
                         };
-                        
+
                         await ApiClient.UpdateCounterpartyAsync(cpId, updatedCp);
                     }
                     else if (tableName == "operations")
@@ -537,16 +537,16 @@ namespace WarehouseApp
                         // Также нужен список товаров (в UI AddItemDialog этого нет, так что отправляем пустой список или один дефолтный)
                         string formTypeStr = formData["type"]?.ToString();
                         string apiType = formTypeStr == "Приход" ? "income" : "sale";
-                        
+
                         int cpId = Convert.ToInt32(formData["counterpartyId"]);
-                        
+
                         var operation = new Dictionary<string, object>
                         {
                             { "counterpartyId", cpId },
                             { "comment", formData["comment"] },
                             { "items", new List<object>() } // создаем пустую шапку операции
                         };
-                        
+
                         await ApiClient.CreateOperationAsync(apiType, operation);
                     }
                     else
@@ -672,14 +672,14 @@ namespace WarehouseApp
             try
             {
                 if (dpTopFrom.SelectedDate == null || dpTopTo.SelectedDate == null) return;
-                
+
                 string fromStr = dpTopFrom.SelectedDate.Value.ToString("yyyy-MM-dd");
                 string toStr = dpTopTo.SelectedDate.Value.ToString("yyyy-MM-dd");
                 int limit = int.TryParse(txtTopLimit.Text, out int lim) ? lim : 10;
 
                 statusText.Text = "Расчет лидеров продаж...";
                 var data = await ApiClient.GetTopProductsAsync(fromStr, toStr, limit);
-                
+
                 var list = new List<TopProductReportRow>();
                 foreach (var d in data)
                 {
@@ -715,10 +715,10 @@ namespace WarehouseApp
                 string toStr = dpTurnoverTo.SelectedDate.Value.ToString("yyyy-MM-dd");
 
                 statusText.Text = "Расчет финансовых оборотов...";
-                
+
                 // Получаем TurnoverDto
                 var data = await ApiClient.GetAsync<Dictionary<string, object>>($"analytics/turnover?from={fromStr}&to={toStr}");
-                
+
                 decimal income = Convert.ToDecimal(data["incomeAmount"]);
                 decimal sales = Convert.ToDecimal(data["saleAmount"]);
                 decimal writeoff = Convert.ToDecimal(data["writeOffAmount"]);

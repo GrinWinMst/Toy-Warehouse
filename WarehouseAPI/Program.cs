@@ -7,9 +7,19 @@ using WarehouseAPI.Repositories.Interfaces;
 using WarehouseAPI.Services;
 using WarehouseAPI.Services.Interfaces;
 
+// Загружаем секреты из файла .env
+DotNetEnv.Env.Load();
+
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+// Собираем строку подключения из переменных окружения
+var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
+var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "5432";
+var dbName = Environment.GetEnvironmentVariable("DB_NAME") ?? "warehouse_db";
+var dbUser = Environment.GetEnvironmentVariable("DB_USER") ?? "postgres";
+var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD");
+
+var connectionString = $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUser};Password={dbPassword}";
 
 // PostgreSQL — единственная поддерживаемая СУБД
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));

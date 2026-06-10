@@ -28,3 +28,6 @@ Thumbs.db
 *.db-shm
 *.db-wal
 
+# Секреты окружения
+.env
+WarehouseAPI/.env
