@@ -14,16 +14,26 @@ public class StockController : ControllerBase
         _stockService = stockService;
     }
 
-    // GET api/stock
+    /// <summary>
+    /// Получить все остатки товаров на складе.
+    /// </summary>
+    /// <returns>Список остатков.</returns>
     [HttpGet]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<WarehouseAPI.DTOs.Stock.StockResponseDto>))]
     public async Task<IActionResult> GetAll()
     {
         var stocks = await _stockService.GetAllAsync();
         return Ok(stocks);
     }
 
-    // GET api/stock/5
+    /// <summary>
+    /// Получить текущий остаток по конкретному товару.
+    /// </summary>
+    /// <param name="productId">Идентификатор товара.</param>
+    /// <returns>Остаток данного товара.</returns>
     [HttpGet("{productId:int}")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(WarehouseAPI.DTOs.Stock.StockResponseDto))]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetByProductId(int productId)
     {
         var stock = await _stockService.GetByProductIdAsync(productId);
