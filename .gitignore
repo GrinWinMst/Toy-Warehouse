@@ -15,6 +15,10 @@
 
 # Logs
 *.log
+logs/
+
+# Backup files (DB dumps must never be committed to git)
+backups/
 
 # OS
 Thumbs.db
