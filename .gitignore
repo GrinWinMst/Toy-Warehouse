@@ -15,6 +15,10 @@
 
 # Logs
 *.log
+logs/
+
+# Backup files (DB dumps must never be committed to git)
+backups/
 
 # OS
 Thumbs.db
@@ -28,3 +32,6 @@ Thumbs.db
 *.db-shm
 *.db-wal
 
+# Секреты окружения
+.env
+WarehouseAPI/.env

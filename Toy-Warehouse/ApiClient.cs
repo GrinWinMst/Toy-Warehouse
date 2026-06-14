@@ -46,7 +46,7 @@ namespace WarehouseApp
                 var jsonInput = _serializer.Serialize(data);
                 var content = new StringContent(jsonInput, Encoding.UTF8, "application/json");
                 var response = await _httpClient.PostAsync(path, content);
-                
+
                 var jsonOutput = await response.Content.ReadAsStringAsync();
                 if (!response.IsSuccessStatusCode)
                 {
@@ -80,7 +80,7 @@ namespace WarehouseApp
                 var jsonInput = _serializer.Serialize(data);
                 var content = new StringContent(jsonInput, Encoding.UTF8, "application/json");
                 var response = await _httpClient.PutAsync(path, content);
-                
+
                 var jsonOutput = await response.Content.ReadAsStringAsync();
                 if (!response.IsSuccessStatusCode)
                 {
@@ -134,7 +134,7 @@ namespace WarehouseApp
         // ─── API ЗВЕРШЕННЫЕ МЕТОДЫ ───────────────────────────────────────────────
 
         // Товары
-        public static Task<List<Dictionary<string, object>>> GetProductsAsync() => 
+        public static Task<List<Dictionary<string, object>>> GetProductsAsync() =>
             GetAsync<List<Dictionary<string, object>>>("products");
 
         public static Task<Dictionary<string, object>> CreateProductAsync(Dictionary<string, object> product) =>

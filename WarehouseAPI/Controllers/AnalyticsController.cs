@@ -14,8 +14,16 @@ public class AnalyticsController : ControllerBase
         _analyticsService = analyticsService;
     }
 
-    // GET api/analytics/top-products?from=2024-01-01&to=2024-12-31&limit=10
+    /// <summary>
+    /// Получить топ продаваемых товаров за период.
+    /// </summary>
+    /// <param name="from">Дата начала периода.</param>
+    /// <param name="to">Дата окончания периода.</param>
+    /// <param name="limit">Количество товаров в топе (от 1 до 100).</param>
+    /// <returns>Список товаров с их показателями.</returns>
     [HttpGet("top-products")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<WarehouseAPI.DTOs.Analytics.TopProductDto>))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetTopProducts(
         [FromQuery] DateTime from,
         [FromQuery] DateTime to,
@@ -34,8 +42,15 @@ public class AnalyticsController : ControllerBase
         return Ok(result);
     }
 
-    // GET api/analytics/turnover?from=2024-01-01&to=2024-12-31
+    /// <summary>
+    /// Получить общие обороты (приход, расход, списание) за период.
+    /// </summary>
+    /// <param name="from">Дата начала периода.</param>
+    /// <param name="to">Дата окончания периода.</param>
+    /// <returns>Данные об оборотах с разбивкой по дням.</returns>
     [HttpGet("turnover")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(WarehouseAPI.DTOs.Analytics.TurnoverDto))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetTurnover(
         [FromQuery] DateTime from,
         [FromQuery] DateTime to)
@@ -50,8 +65,14 @@ public class AnalyticsController : ControllerBase
         return Ok(result);
     }
 
-    // GET api/analytics/low-stock?minQuantity=5
+    /// <summary>
+    /// Получить список товаров, остаток которых ниже минимально допустимого.
+    /// </summary>
+    /// <param name="minQuantity">Минимально допустимый остаток.</param>
+    /// <returns>Список товаров с низким остатком.</returns>
     [HttpGet("low-stock")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<WarehouseAPI.DTOs.Analytics.LowStockDto>))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetLowStock([FromQuery] decimal minQuantity = 5)
     {
         if (minQuantity < 0)

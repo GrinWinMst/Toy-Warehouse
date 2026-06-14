@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
@@ -153,10 +153,12 @@ namespace WarehouseApp
                         Style = (Style)FindResource("FormTextBox"),
                         Text = placeholder
                     };
-                    textBox.GotFocus += (s, e) => {
+                    textBox.GotFocus += (s, e) =>
+                    {
                         if (textBox.Text == placeholder) textBox.Text = "";
                     };
-                    textBox.LostFocus += (s, e) => {
+                    textBox.LostFocus += (s, e) =>
+                    {
                         if (string.IsNullOrWhiteSpace(textBox.Text)) textBox.Text = placeholder;
                     };
                     control = textBox;
@@ -170,10 +172,12 @@ namespace WarehouseApp
                         Text = placeholder
                     };
                     numericBox.PreviewTextInput += NumericBox_PreviewTextInput;
-                    numericBox.GotFocus += (s, e) => {
+                    numericBox.GotFocus += (s, e) =>
+                    {
                         if (numericBox.Text == placeholder) numericBox.Text = "";
                     };
-                    numericBox.LostFocus += (s, e) => {
+                    numericBox.LostFocus += (s, e) =>
+                    {
                         if (string.IsNullOrWhiteSpace(numericBox.Text)) numericBox.Text = placeholder;
                     };
                     control = numericBox;
@@ -259,7 +263,7 @@ namespace WarehouseApp
                 if (control is TextBox textBox)
                 {
                     string value = textBox.Text;
-                    
+
                     if (value == "Введите название" ||
                         value == "Введите артикул" ||
                         value == "Введите цену" ||

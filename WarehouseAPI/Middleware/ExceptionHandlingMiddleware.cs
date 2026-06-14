@@ -12,7 +12,7 @@ public class ExceptionHandlingMiddleware
         RequestDelegate next,
         ILogger<ExceptionHandlingMiddleware> logger)
     {
-        _next   = next;
+        _next = next;
         _logger = logger;
     }
 
@@ -22,9 +22,49 @@ public class ExceptionHandlingMiddleware
         {
             await _next(context);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            // WARNING — попытка несанкционированного доступа
+            _logger.LogWarning(
+                ex,
+                "[SECURITY] Попытка несанкционированного доступа: {Method} {Path} — {Message}",
+                context.Request.Method,
+                context.Request.Path,
+                ex.Message);
+            await HandleExceptionAsync(context, ex);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // ERROR — нарушение бизнес-правил (нехватка остатка, дубль артикула и т.д.)
+            _logger.LogError(
+                ex,
+                "[BUSINESS] Нарушение бизнес-правила: {Method} {Path} — {Message}",
+                context.Request.Method,
+                context.Request.Path,
+                ex.Message);
+            await HandleExceptionAsync(context, ex);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            // WARNING — запрошен несуществующий ресурс
+            _logger.LogWarning(
+                ex,
+                "[NOT_FOUND] Ресурс не найден: {Method} {Path} — {Message}",
+                context.Request.Method,
+                context.Request.Path,
+                ex.Message);
+            await HandleExceptionAsync(context, ex);
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Необработанное исключение: {Message}", ex.Message);
+            // CRITICAL — неожиданное исключение, вероятно сбой БД или инфраструктуры
+            _logger.LogCritical(
+                ex,
+                "[CRITICAL] Необработанное исключение системного уровня: {Method} {Path} — {Message}\nStackTrace: {StackTrace}",
+                context.Request.Method,
+                context.Request.Path,
+                ex.Message,
+                ex.StackTrace);
             await HandleExceptionAsync(context, ex);
         }
     }
@@ -33,21 +73,21 @@ public class ExceptionHandlingMiddleware
     {
         var (statusCode, message) = exception switch
         {
-            InvalidOperationException ex => (HttpStatusCode.BadRequest,      ex.Message),
-            KeyNotFoundException ex      => (HttpStatusCode.NotFound,         ex.Message),
-            ArgumentException ex         => (HttpStatusCode.BadRequest,       ex.Message),
-            UnauthorizedAccessException  => (HttpStatusCode.Unauthorized,     "Нет доступа"),
-            _                            => (HttpStatusCode.InternalServerError, "Внутренняя ошибка сервера")
+            InvalidOperationException ex => (HttpStatusCode.BadRequest, ex.Message),
+            KeyNotFoundException ex => (HttpStatusCode.NotFound, ex.Message),
+            ArgumentException ex => (HttpStatusCode.BadRequest, ex.Message),
+            UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "Нет доступа"),
+            _ => (HttpStatusCode.InternalServerError, "Внутренняя ошибка сервера")
         };
 
         context.Response.ContentType = "application/json";
-        context.Response.StatusCode  = (int)statusCode;
+        context.Response.StatusCode = (int)statusCode;
 
         var response = new
         {
-            status  = (int)statusCode,
+            status = (int)statusCode,
             message,
-            path    = context.Request.Path.ToString(),
+            path = context.Request.Path.ToString(),
             traceId = context.TraceIdentifier   // удобно для отладки
         };
 

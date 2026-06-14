@@ -11,16 +11,23 @@ public class OperationService : IOperationService
 {
     private readonly IOperationRepository _operationRepository;
     private readonly AppDbContext _context;  // нужен для транзакций
+    private readonly ILogger<OperationService> _logger;
 
-    public OperationService(IOperationRepository operationRepository, AppDbContext context)
+    public OperationService(
+        IOperationRepository operationRepository,
+        AppDbContext context,
+        ILogger<OperationService> logger)
     {
         _operationRepository = operationRepository;
         _context = context;
+        _logger = logger;
     }
 
     // ─── ПРИХОД ────────────────────────────────────────────────────────────────
     public async Task<OperationResponseDto> IncomeAsync(IncomeCreateDto dto)
     {
+        _logger.LogInformation("[TXN] Начало транзакции: Приход. Позиций: {Count}, контрагент: {CpId}",
+            dto.Items.Count, dto.CounterpartyId);
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
@@ -47,6 +54,8 @@ public class OperationService : IOperationService
                     ?? throw new InvalidOperationException(
                         $"Остаток для товара ID={item.ProductId} не найден");
 
+                _logger.LogInformation("[DB] Остаток товара Id={PId}: {Old} → {New}",
+                    item.ProductId, stock.Quantity, stock.Quantity + item.Quantity);
                 stock.Quantity += item.Quantity;
                 await _operationRepository.UpdateStockAsync(stock);
             }
@@ -54,12 +63,16 @@ public class OperationService : IOperationService
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
+            _logger.LogInformation("[TXN] Транзакция Приход завершена успешно. OperationId={OId}", operation.Id);
             return MapToResponse(await _operationRepository.GetByIdAsync(operation.Id)
                 ?? throw new Exception("Ошибка при получении созданной операции"));
         }
-        catch
+        catch (Exception ex)
         {
             await transaction.RollbackAsync();
+            _logger.LogCritical(ex,
+                "[TXN] ОТКАТ транзакции Приход. Причина: {Message}\nStackTrace: {StackTrace}",
+                ex.Message, ex.StackTrace);
             throw;
         }
     }
@@ -67,6 +80,8 @@ public class OperationService : IOperationService
     // ─── РЕАЛИЗАЦИЯ (ПРОДАЖА) ──────────────────────────────────────────────────
     public async Task<OperationResponseDto> SaleAsync(SaleCreateDto dto)
     {
+        _logger.LogInformation("[TXN] Начало транзакции: Продажа. Позиций: {Count}, контрагент: {CpId}",
+            dto.Items.Count, dto.CounterpartyId);
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
@@ -78,9 +93,14 @@ public class OperationService : IOperationService
                         $"Остаток для товара ID={item.ProductId} не найден");
 
                 if (stock.Quantity < item.Quantity)
+                {
+                    _logger.LogWarning(
+                        "[BUSINESS] Недостаточный остаток: товар Id={PId}, на складе={Avail}, запрошено={Req}",
+                        item.ProductId, stock.Quantity, item.Quantity);
                     throw new InvalidOperationException(
                         $"Недостаточно товара ID={item.ProductId}: " +
                         $"на складе {stock.Quantity}, запрошено {item.Quantity}");
+                }
             }
 
             var operation = new Operation
@@ -103,6 +123,8 @@ public class OperationService : IOperationService
             foreach (var item in dto.Items)
             {
                 var stock = await _operationRepository.GetStockAsync(item.ProductId)!;
+                _logger.LogInformation("[DB] Остаток товара Id={PId}: {Old} → {New}",
+                    item.ProductId, stock.Quantity, stock.Quantity - item.Quantity);
                 stock.Quantity -= item.Quantity;
                 await _operationRepository.UpdateStockAsync(stock);
             }
@@ -110,12 +132,21 @@ public class OperationService : IOperationService
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
+            _logger.LogInformation("[TXN] Транзакция Продажа завершена успешно. OperationId={OId}", operation.Id);
             return MapToResponse(await _operationRepository.GetByIdAsync(operation.Id)
                 ?? throw new Exception("Ошибка при получении созданной операции"));
         }
-        catch
+        catch (InvalidOperationException)
         {
             await transaction.RollbackAsync();
+            throw;  // бизнес-ошибка уже залогирована выше
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogCritical(ex,
+                "[TXN] ОТКАТ транзакции Продажа. Причина: {Message}\nStackTrace: {StackTrace}",
+                ex.Message, ex.StackTrace);
             throw;
         }
     }
@@ -125,6 +156,7 @@ public class OperationService : IOperationService
     // Если появятся склады — здесь будет: списать с одного, добавить на другой.
     public async Task<OperationResponseDto> TransferAsync(TransferCreateDto dto)
     {
+        _logger.LogInformation("[TXN] Начало транзакции: Перемещение. Позиций: {Count}", dto.Items.Count);
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
@@ -136,9 +168,14 @@ public class OperationService : IOperationService
                         $"Остаток для товара ID={item.ProductId} не найден");
 
                 if (stock.Quantity < item.Quantity)
+                {
+                    _logger.LogWarning(
+                        "[BUSINESS] Недостаточный остаток для перемещения: товар Id={PId}, на складе={Avail}, запрошено={Req}",
+                        item.ProductId, stock.Quantity, item.Quantity);
                     throw new InvalidOperationException(
                         $"Недостаточно товара ID={item.ProductId}: " +
                         $"на складе {stock.Quantity}, запрошено {item.Quantity}");
+                }
             }
 
             var operation = new Operation
@@ -160,12 +197,21 @@ public class OperationService : IOperationService
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
+            _logger.LogInformation("[TXN] Транзакция Перемещение завершена успешно. OperationId={OId}", operation.Id);
             return MapToResponse(await _operationRepository.GetByIdAsync(operation.Id)
                 ?? throw new Exception("Ошибка при получении созданной операции"));
         }
-        catch
+        catch (InvalidOperationException)
         {
             await transaction.RollbackAsync();
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogCritical(ex,
+                "[TXN] ОТКАТ транзакции Перемещение. Причина: {Message}\nStackTrace: {StackTrace}",
+                ex.Message, ex.StackTrace);
             throw;
         }
     }
@@ -173,6 +219,7 @@ public class OperationService : IOperationService
     // ─── СПИСАНИЕ ──────────────────────────────────────────────────────────────
     public async Task<OperationResponseDto> WriteOffAsync(WriteOffCreateDto dto)
     {
+        _logger.LogInformation("[TXN] Начало транзакции: Списание. Позиций: {Count}", dto.Items.Count);
         await using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
@@ -184,9 +231,14 @@ public class OperationService : IOperationService
                         $"Остаток для товара ID={item.ProductId} не найден");
 
                 if (stock.Quantity < item.Quantity)
+                {
+                    _logger.LogWarning(
+                        "[BUSINESS] Недостаточный остаток для списания: товар Id={PId}, на складе={Avail}, запрошено={Req}",
+                        item.ProductId, stock.Quantity, item.Quantity);
                     throw new InvalidOperationException(
                         $"Недостаточно товара ID={item.ProductId}: " +
                         $"на складе {stock.Quantity}, запрошено {item.Quantity}");
+                }
             }
 
             var operation = new Operation
@@ -208,6 +260,8 @@ public class OperationService : IOperationService
             foreach (var item in dto.Items)
             {
                 var stock = await _operationRepository.GetStockAsync(item.ProductId)!;
+                _logger.LogInformation("[DB] Остаток товара Id={PId}: {Old} → {New}",
+                    item.ProductId, stock.Quantity, stock.Quantity - item.Quantity);
                 stock.Quantity -= item.Quantity;
                 await _operationRepository.UpdateStockAsync(stock);
             }
@@ -215,12 +269,21 @@ public class OperationService : IOperationService
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
+            _logger.LogInformation("[TXN] Транзакция Списание завершена успешно. OperationId={OId}", operation.Id);
             return MapToResponse(await _operationRepository.GetByIdAsync(operation.Id)
                 ?? throw new Exception("Ошибка при получении созданной операции"));
         }
-        catch
+        catch (InvalidOperationException)
         {
             await transaction.RollbackAsync();
+            throw;
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogCritical(ex,
+                "[TXN] ОТКАТ транзакции Списание. Причина: {Message}\nStackTrace: {StackTrace}",
+                ex.Message, ex.StackTrace);
             throw;
         }
     }
@@ -228,6 +291,8 @@ public class OperationService : IOperationService
     // ─── ИСТОРИЯ И ПОЛУЧЕНИЕ ───────────────────────────────────────────────────
     public async Task<IEnumerable<OperationResponseDto>> GetHistoryAsync(OperationFilterDto filter)
     {
+        _logger.LogInformation("[DB] Запрос истории операций: from={From}, to={To}, type={Type}",
+            filter.From, filter.To, filter.Type);
         var operations = await _operationRepository.GetHistoryAsync(
             filter.From,
             filter.To,
@@ -237,6 +302,7 @@ public class OperationService : IOperationService
             filter.Page,
             filter.PageSize);
 
+        _logger.LogInformation("[DB] Получено {Count} операций из истории", operations.Count());
         return operations.Select(MapToResponse);
     }
 

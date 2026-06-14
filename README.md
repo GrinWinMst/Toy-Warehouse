@@ -361,58 +361,63 @@ Products ──────────── Stock
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - [PostgreSQL 15+](https://www.postgresql.org/download/)
+- [Docker & Docker Compose] (опционально, для контейнеризированного запуска)
 
-### 1. Клонировать репозиторий
+### Вариант 1. Обычный запуск (локально)
 
-```bash
-git clone <url-репозитория>
-cd WarehouseAPI
-```
+1. **Клонировать репозиторий:**
+   ```bash
+   git clone <url-репозитория>
+   cd WarehouseAPI
+   ```
 
-### 2. Настроить строку подключения
+2. **Настроить переменные окружения:**
+   Скопируйте `.env.example` в `.env` и заполните данные:
+   ```bash
+   cp .env.example .env
+   ```
+   *(Убедитесь, что база данных уже создана локально)*
 
-Открой `appsettings.json` и заполни `DefaultConnection`:
+3. **Применить миграции:**
+   ```bash
+   dotnet ef database update
+   ```
 
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=warehouse_db;Username=postgres;Password=твой_пароль"
-  }
-}
-```
+4. **Запустить API:**
+   ```bash
+   dotnet run
+   ```
+   API будет доступен по адресам: `http://localhost:5023` (Swagger: `http://localhost:5023/swagger`)
 
-> Базу данных `warehouse_db` нужно создать заранее в pgAdmin или через `psql`:
-> ```sql
-> CREATE DATABASE warehouse_db;
-> ```
+### Вариант 2. Запуск через Docker Compose (Контейнеры)
 
-### 3. Применить миграции
-
-```bash
-dotnet ef database update
-```
-
-После выполнения все таблицы будут созданы автоматически.
-
-### 4. Запустить API
-
-```bash
-dotnet run
-```
-
-API будет доступен по адресам:
-- HTTP: `http://localhost:5023`
-- HTTPS: `https://localhost:7150`
-- Swagger UI: `http://localhost:5023/swagger`
+1. **Клонировать репозиторий** и перейти в корневую директорию проекта.
+2. **Создать файл `.env`** на основе `.env.example` (в нем должны быть указаны настройки БД).
+3. **Запустить контейнеры:**
+   ```bash
+   docker-compose up -d --build
+   ```
+   Docker Compose автоматически:
+   - Поднимет контейнер с СУБД PostgreSQL (`warehouse_db`).
+   - Соберет образ API и запустит его (`warehouse_api`).
+   - Настроит сетевое взаимодействие между ними.
+   
+   После запуска API будет доступен на порту `8080`: `http://localhost:8080/swagger`
 
 ---
 
 ## Переменные окружения
 
-| Переменная | Описание |
-|---|---|
-| `ASPNETCORE_ENVIRONMENT` | `Development` — включает Swagger и расширенные логи |
-| `ConnectionStrings__DefaultConnection` | Строка подключения к PostgreSQL |
+Все чувствительные настройки вынесены в файл `.env`, который не попадает в систему контроля версий. Ниже представлена карта переменных окружения:
+
+| Переменная | Тип | Назначение | Пример (безопасное значение) |
+|---|---|---|---|
+| `DB_HOST` | string | Хост (адрес) базы данных PostgreSQL | `localhost` или `db` (в Docker) |
+| `DB_PORT` | int | Порт подключения к СУБД | `5432` |
+| `DB_NAME` | string | Название базы данных | `warehouse_db` |
+| `DB_USER` | string | Имя пользователя СУБД | `postgres` |
+| `DB_PASSWORD` | string | Пароль пользователя СУБД | `your_secure_password_here` |
+| `ASPNETCORE_ENVIRONMENT` | string | Режим среды (`Development` / `Production`) | `Development` |
 
 ---
 
